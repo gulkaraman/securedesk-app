@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs (electron-vite)
+out/
+
+# Distribution (electron-builder)
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs and debug
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+*.tmp
+*.temp
+.cache/
+
+# Optional: lockfile only if you want to allow different versions per env (usually keep package-lock.json)
+# package-lock.json

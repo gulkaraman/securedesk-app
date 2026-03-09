@@ -56,7 +56,7 @@ SecureDesk App; görev yönetimi, zaman takibi, şifreli veri kasası ve haftal�
 ![Zaman Takibi](docs/images/zaman-takibi.png)
 
 ### Kasa
-![Kasa](docs/images/kasa.png)
+![Kasa](docs/images/vault-unlock.png)
 
 ### Raporlar
 ![Raporlar](docs/images/raporlar.png)

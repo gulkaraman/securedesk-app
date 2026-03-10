@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Project, Task, TodayTaskSummaryItem, TodayTimeEntryItem } from '@shared/models'
+import type { Project, Task, TodayTaskSummaryItem } from '@shared/models'
 import { unwrap } from '@shared/result'
 import { DataTable } from '../../components/DataTable'
 import { getElapsedSeconds, timerStore, useTimerState } from '@lib/timerStore'
@@ -13,7 +13,6 @@ export function TimerPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
   const [customMinutes, setCustomMinutes] = useState<string>('')
-  const [entries, setEntries] = useState<TodayTimeEntryItem[]>([])
   const [summary, setSummary] = useState<TodayTaskSummaryItem[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,9 +23,7 @@ export function TimerPage() {
     setError(null)
 
     try {
-      const e = unwrap(await window.api.timer.todayEntries())
       const s = unwrap(await window.api.timer.todaySummary())
-      setEntries(e)
       setSummary(s)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Yüklenemedi')
@@ -83,11 +80,6 @@ export function TimerPage() {
   }, [])
 
   const hasFilters = filterTaskIds.size > 0
-
-  const filteredEntries = useMemo(() => {
-    if (filterTaskIds.size === 0) return entries
-    return entries.filter((e) => filterTaskIds.has(e.taskId))
-  }, [entries, filterTaskIds])
 
   const activeTaskCount = timer.active.length
 

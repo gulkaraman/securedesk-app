@@ -25,6 +25,7 @@ export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, o
 
   const hasActiveSession = Array.isArray(activeSessions) && activeSessions.length > 0
   const firstActiveSession = hasActiveSession ? activeSessions[0] : null
+  const hasActions = Boolean(onStart ?? onStop)
 
   return (
     <div
@@ -69,7 +70,7 @@ export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, o
         </button>
       </div>
 
-      {(onStart || onStop) && (
+      {hasActions && (
         <div className="row" style={{ marginTop: 8, gap: 8 }}>
           {!hasActiveSession && onStart ? (
             <button

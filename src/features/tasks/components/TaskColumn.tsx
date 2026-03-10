@@ -42,9 +42,21 @@ export function TaskColumn({
             key={t.id}
             task={t}
             isSelected={selectedTaskId === t.id}
-            onStart={onStartTask ? () => onStartTask(t) : undefined}
+            onStart={
+              onStartTask
+                ? () => {
+                    onStartTask(t)
+                  }
+                : undefined
+            }
             activeSessions={getActiveSessionsForTask ? getActiveSessionsForTask(t) : undefined}
-            onStop={onStopTask ? (uid) => onStopTask(t, uid) : undefined}
+            onStop={
+              onStopTask
+                ? (uid) => {
+                    onStopTask(t, uid)
+                  }
+                : undefined
+            }
             onClick={() => {
               onTaskClick(t)
             }}

@@ -72,14 +72,24 @@ function normalizeTimer(input: unknown): NormalizedTimer | null {
   if (startTime == null) return null
 
   const endedAtMs = toFiniteMs(raw.endedAtMs) ?? toFiniteMs(raw.ended_at_ms) ?? toFiniteMs(raw.endedAt) ?? undefined
+  const projectName = typeof raw.projectName === 'string' ? raw.projectName : ''
+  const taskTitle = typeof raw.taskTitle === 'string' ? raw.taskTitle : ''
+  const userName =
+    raw.userName == null
+      ? null
+      : typeof raw.userName === 'string'
+        ? raw.userName
+        : typeof raw.userId === 'number' || typeof raw.userId === 'string'
+          ? String(raw.userId)
+          : null
 
   const base: ActiveTimerSession = {
     projectId: Number(raw.projectId),
-    projectName: String(raw.projectName ?? ''),
+    projectName,
     taskId: Number(raw.taskId),
-    taskTitle: String(raw.taskTitle ?? ''),
+    taskTitle,
     userId: raw.userId == null ? null : Number(raw.userId),
-    userName: raw.userName == null ? null : String(raw.userName),
+    userName,
     startTime
   }
 

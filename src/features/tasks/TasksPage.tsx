@@ -192,7 +192,7 @@ export function TasksPage() {
     void timerStore.start(task.id, task.assignedUserId ?? null)
   }
 
-  const handleStopTask = (task: Task, _userId: number | null): void => {
+  const handleStopTask = (task: Task): void => {
     void timerStore.stop(task.id)
   }
 

@@ -3,6 +3,7 @@ import type { Task, TaskAttachment, UpdateTaskInput, User } from '@shared/models
 import type { Result } from '@shared/result'
 import { unwrap } from '@shared/result'
 import { getElapsedSeconds, timerStore, useTimerState } from '@lib/timerStore'
+import { formatDuration } from '@lib/time'
 
 interface TaskDetailsPanelProps {
   task: Task | null
@@ -120,7 +121,7 @@ export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateT
           {activeForTask.length > 0 ? (
             activeForTask.map((session) => (
               <button
-                key={`${session.taskId}-${session.userId ?? 'null'}-${session.startTime}`}
+                key={`${String(session.taskId)}-${session.userId != null ? String(session.userId) : 'null'}-${String(session.startTime)}`}
                 type="button"
                 className="btn"
                 onClick={() => {
@@ -128,7 +129,8 @@ export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateT
                 }}
                 disabled={timer.loading || busy}
               >
-                Durdur ({getElapsedSeconds(session, timer.nowMs)}s){session.userName ? ` — ${session.userName}` : ''}
+                Durdur ({formatDuration(getElapsedSeconds(session, timer.nowMs))})
+                {session.userName ? ` — ${session.userName}` : ''}
               </button>
             ))
           ) : (
@@ -412,7 +414,9 @@ export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateT
                   try {
                     const res = await window.api.timer.taskTotals(task.id)
                     const totals = unwrap(res)
-                    setTotalsText(`Bugün: ${String(totals.todaySeconds)}s • Toplam: ${String(totals.totalSeconds)}s`)
+                    const todayText = String(totals.todaySeconds)
+                    const totalText = String(totals.totalSeconds)
+                    setTotalsText('Bugün: ' + todayText + 's • Toplam: ' + totalText + 's')
                   } catch (e: unknown) {
                     setError(e instanceof Error ? e.message : 'Süre yüklenemedi')
                   } finally {

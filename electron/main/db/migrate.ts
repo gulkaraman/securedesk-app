@@ -214,7 +214,7 @@ const migrations: readonly Migration[] = [
   {
     id: '006_active_timer_sessions_fix_schema',
     up: (db) => {
-      const cols = db.prepare("SELECT name FROM pragma_table_info('active_timer_sessions')").all() as Array<{ name: string }>
+      const cols = db.prepare("SELECT name FROM pragma_table_info('active_timer_sessions')").all() as { name: string }[]
       const names = new Set(cols.map((c) => c.name))
       // If table doesn't exist, pragma returns empty. Migration 004 would have created it.
       if (cols.length === 0) return
@@ -283,7 +283,7 @@ const migrations: readonly Migration[] = [
   {
     id: '008_active_timer_sessions_task_key_and_started_at_ms',
     up: (db) => {
-      const cols = db.prepare("SELECT name FROM pragma_table_info('active_timer_sessions')").all() as Array<{ name: string }>
+      const cols = db.prepare("SELECT name FROM pragma_table_info('active_timer_sessions')").all() as { name: string }[]
       if (cols.length === 0) return
       const names = new Set(cols.map((c) => c.name))
 

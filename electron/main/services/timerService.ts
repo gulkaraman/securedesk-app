@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { NotFoundError, ValidationError } from '@shared/errors'
 import type { Id, TimeEntry, UnixMs } from '@shared/models'
-import { ActiveTimerRepository, type ActiveTimerRow } from '../repositories/activeTimerRepository'
+import { ActiveTimerRepository } from '../repositories/activeTimerRepository'
 import { TaskRepository } from '../repositories/taskRepository'
 import { ProjectRepository } from '../repositories/projectRepository'
 import { UserRepository } from '../repositories/userRepository'

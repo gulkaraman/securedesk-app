@@ -8,9 +8,9 @@ export function formatDuration(totalSeconds: number | null | undefined): string 
   const minutes = Math.floor((safeSeconds % 3600) / 60)
   const seconds = safeSeconds % 60
 
-  if (hours > 0) return `${hours}sa ${minutes}dk ${seconds}sn`
-  if (minutes > 0) return `${minutes}dk ${seconds}sn`
-  return `${seconds}sn`
+  if (hours > 0) return `${String(hours)}sa ${String(minutes)}dk ${String(seconds)}sn`
+  if (minutes > 0) return `${String(minutes)}dk ${String(seconds)}sn`
+  return `${String(seconds)}sn`
 }
 export function formatDateLabel(dateMs: number): string {
   const d = new Date(dateMs)

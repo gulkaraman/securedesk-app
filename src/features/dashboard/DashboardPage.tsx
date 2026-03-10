@@ -24,7 +24,7 @@ export function DashboardPage() {
   const timer = useTimerState()
 
   useEffect(() => {
-    const cancelledRef = { current: false }
+    const cancelledRef: { current: boolean } = { current: false }
     setLoading(true)
     setError(null)
 
@@ -53,6 +53,7 @@ export function DashboardPage() {
           })
         )
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!cancelledRef.current) setProjectCounts(withCounts)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Dashboard yüklenemedi')

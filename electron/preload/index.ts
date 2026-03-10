@@ -63,8 +63,8 @@ const api: RendererApi = {
   },
   timer: {
     getActive: async () => await invoke('timer:getActive'),
-    start: async (taskId) => await invoke('timer:start', taskId),
-    stop: async () => await invoke('timer:stop'),
+    start: async (taskId, userId) => await invoke('timer:start', taskId, userId),
+    stop: async (taskId) => await invoke('timer:stop', taskId),
     todayEntries: async () => await invoke('timer:todayEntries'),
     todaySummary: async () => await invoke('timer:todaySummary'),
     taskTotals: async (taskId) => await invoke('timer:taskTotals', taskId)

@@ -7,7 +7,9 @@ import { TimerPage } from '@features/timer/TimerPage'
 import { UsersPage } from '@features/users/UsersPage'
 import { VaultPage } from '@features/vault/VaultPage'
 import { ROUTES, type RouteKey } from '@lib/navigation'
-import { getElapsedSeconds, timerStore, useTimerState } from '@lib/timerStore'
+import { getElapsedSeconds, getValidActiveTimers, timerStore, useTimerState } from '@lib/timerStore'
+import { formatDuration } from '@lib/time'
+import { unwrap } from '@shared/result'
 import { TitleBar } from './components/TitleBar'
 import { VaultStartupPrompt } from './components/VaultStartupPrompt'
 
@@ -31,12 +33,43 @@ function getPage(route: RouteKey): React.ReactElement {
 }
 
 export function App() {
-  const [route, setRoute] = useState<RouteKey>('dashboard')
-  const timer = useTimerState()
+  const [route, setRoute] = useState<RouteKey>('tasks')
   const [vaultPromptDismissed, setVaultPromptDismissed] = useState(false)
+  const timer = useTimerState()
 
   const page = useMemo(() => getPage(route), [route])
-  const elapsed = useMemo(() => getElapsedSeconds(timer.active, timer.nowMs), [timer.active, timer.nowMs])
+  const activeTimers = useMemo(() => getValidActiveTimers(timer.active), [timer.active])
+
+  const summaryStartMs = useMemo(() => {
+    if (activeTimers.length === 0) return null
+    return Math.min(...activeTimers.map((t) => t.startTime))
+  }, [activeTimers])
+
+  const summaryElapsedSeconds = useMemo(() => {
+    if (summaryStartMs == null) return 0
+    return getElapsedSeconds({ startTime: summaryStartMs }, timer.nowMs)
+  }, [summaryStartMs, timer.nowMs])
+
+  const startAllTasks = async (): Promise<void> => {
+    try {
+      const projectsRes = await window.api.projects.list()
+      const allProjects = unwrap(projectsRes)
+
+      const taskGroups = await Promise.all(
+        allProjects.map(async (project) => {
+          const res = await window.api.tasks.listByProject(project.id)
+          return unwrap(res)
+        })
+      )
+
+      const taskIds = [...new Set(taskGroups.flat().map((task) => task.id))]
+      if (taskIds.length === 0) return
+
+      await timerStore.startMany(taskIds)
+    } catch (e) {
+      console.error('Toplu başlatma başarısız', e)
+    }
+  }
 
   return (
     <div className="app">
@@ -47,6 +80,7 @@ export function App() {
           }}
         />
       ) : null}
+
       <TitleBar />
 
       <div className="shell">
@@ -55,26 +89,41 @@ export function App() {
             <div className="panel-header">
               <div className="panel-title">Aktif Sayaç</div>
             </div>
-            {timer.active ? (
-              <div className="form">
-                <div className="note-meta">{timer.active.taskTitle}</div>
-                <div className="note-meta">Süre: {elapsed}s</div>
+
+            <div className="form">
+              <div style={{ marginBottom: 10 }}>
+                <div className="note-meta">Aktif görev sayısı: {activeTimers.length}</div>
+                <div className="note-meta">Aktif süre: {formatDuration(summaryElapsedSeconds)}</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <button
                   type="button"
                   className="btn"
                   onClick={() => {
-                    void timerStore.stop()
+                    void startAllTasks()
                   }}
                   disabled={timer.loading}
                 >
-                  Durdur
+                  Aktif Sayaçları Başlat
+                </button>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    void timerStore.stopMany(activeTimers.map((t) => t.taskId))
+                  }}
+                  disabled={timer.loading || activeTimers.length === 0}
+                >
+                  Aktif Sayaçları Durdur
                 </button>
               </div>
-            ) : (
-              <div className="empty">Aktif sayaç yok.</div>
-            )}
+            </div>
+
             {timer.error ? <div className="error">{timer.error}</div> : null}
           </div>
+
           <div className="nav">
             {ROUTES.map((r) => (
               <button
@@ -96,4 +145,3 @@ export function App() {
     </div>
   )
 }
-

@@ -9,7 +9,6 @@ interface ProjectWithCount extends Project {
 }
 
 export function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([])
   const [projectCounts, setProjectCounts] = useState<ProjectWithCount[]>([])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -21,7 +20,6 @@ export function ProjectsPage() {
   const loadProjects = async () => {
     const res = await window.api.projects.list()
     const list = unwrap(res)
-    setProjects(list)
     const withCounts: ProjectWithCount[] = await Promise.all(
       list.map(async (p) => {
         const tr = await window.api.tasks.listByProject(p.id)
@@ -88,11 +86,11 @@ export function ProjectsPage() {
   }, [])
   const hasFilters = filterProjectIds.size > 0
   const filteredProjects = useMemo(() => {
-    if (filterProjectIds.size === 0) return projects
-    return projects.filter((p) => filterProjectIds.has(p.id))
-  }, [projects, filterProjectIds])
+    if (filterProjectIds.size === 0) return projectCounts
+    return projectCounts.filter((p) => filterProjectIds.has(p.id))
+  }, [projectCounts, filterProjectIds])
 
-  const columns: DataTableColumn<Project>[] = [
+  const columns: DataTableColumn<ProjectWithCount>[] = [
     { id: 'name', label: 'Proje adı', sortKey: 'name' },
     {
       id: 'description',
@@ -171,7 +169,7 @@ export function ProjectsPage() {
         <div className="panel-header">
           <div className="panel-title">{hasFilters ? 'Filtrelenmiş projeler' : 'Tüm projeler'}</div>
         </div>
-        <DataTable<Project>
+        <DataTable<ProjectWithCount>
           keyField="id"
           rows={filteredProjects}
           columns={columns}
@@ -214,11 +212,22 @@ function ProjectsTaskCountChart({ data, onSegmentClick }: ProjectsTaskCountChart
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          onClick: (_, elements) => {
-            if (elements.length > 0 && onSegmentClick) {
-              const first = elements[0]
-              if (first != null) onSegmentClick(first.index)
+          onClick: (event, elements, chart) => {
+            if (!onSegmentClick) return
+            const first = elements[0]
+            if (first) {
+              onSegmentClick(first.index)
+              return
             }
+            // Fallback: infer index from x position so zero-task projects are also clickable
+            const e = event as unknown as { native?: { offsetX?: number } }
+            const x = e.native?.offsetX
+            const scale = chart.scales.x
+            if (!scale || typeof x !== 'number') return
+            const rawIndex = scale.getValueForPixel(x)
+            const index = typeof rawIndex === 'number' ? Math.round(rawIndex) : Number(rawIndex)
+            if (!Number.isFinite(index) || index < 0 || index >= data.length) return
+            onSegmentClick(index)
           },
           plugins: {
             legend: { display: false }

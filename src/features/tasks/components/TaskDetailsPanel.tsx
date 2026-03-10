@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Task, TaskAttachment } from '@shared/models'
+import type { Task, TaskAttachment, UpdateTaskInput, User } from '@shared/models'
 import type { Result } from '@shared/result'
 import { unwrap } from '@shared/result'
 import { getElapsedSeconds, timerStore, useTimerState } from '@lib/timerStore'
 
 interface TaskDetailsPanelProps {
   task: Task | null
+  users: User[]
   onClose: () => void
   onDeleteTask?: (taskId: number) => Promise<Result<boolean>>
+  onUpdateTask?: (input: UpdateTaskInput) => Promise<Result<Task>>
 }
 
 function formatBytes(size: number): string {
@@ -21,7 +23,9 @@ function formatBytes(size: number): string {
 }
 
 function formatDate(ts: number): string {
-  return new Date(ts).toLocaleString()
+  if (!Number.isFinite(ts)) return '—'
+  const d = new Date(ts)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString()
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,15 +43,19 @@ const DURATION_PRESETS = [
   { label: '1 saat', minutes: 60 }
 ]
 
-export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPanelProps) {
+export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateTask }: TaskDetailsPanelProps) {
   const [attachments, setAttachments] = useState<TaskAttachment[]>([])
   const [assigneeName, setAssigneeName] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [totalsText, setTotalsText] = useState<string | null>(null)
   const [customMinutes, setCustomMinutes] = useState<string>('')
+  const [assignedUserId, setAssignedUserId] = useState<number | null>(task?.assignedUserId ?? null)
   const timer = useTimerState()
-  const elapsed = useMemo(() => getElapsedSeconds(timer.active, timer.nowMs), [timer.active, timer.nowMs])
+  const activeForTask = useMemo(() => {
+    if (!task) return []
+    return timer.active.filter((s) => s.taskId === task.id)
+  }, [task, timer.active])
 
   const refresh = async (taskId: number) => {
     const res = await window.api.taskAttachments.listByTask(taskId)
@@ -59,6 +67,7 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
     if (!task) {
       setAttachments([])
       setAssigneeName(null)
+      setAssignedUserId(null)
       return
     }
     void (async () => {
@@ -71,6 +80,7 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
   }, [task?.id])
 
   useEffect(() => {
+    setAssignedUserId(task?.assignedUserId ?? null)
     const assignedUserId = task?.assignedUserId
     if (assignedUserId == null) {
       setAssigneeName(null)
@@ -107,26 +117,29 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
       <div className="panel-header">
         <div className="panel-title">{task.title}</div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          {timer.active?.taskId === task.id ? (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                void timerStore.stop()
-              }}
-              disabled={timer.loading || busy}
-            >
-              Durdur ({elapsed}s)
-            </button>
+          {activeForTask.length > 0 ? (
+            activeForTask.map((session) => (
+              <button
+                key={`${session.taskId}-${session.userId ?? 'null'}-${session.startTime}`}
+                type="button"
+                className="btn"
+                onClick={() => {
+                  void timerStore.stop(task.id)
+                }}
+                disabled={timer.loading || busy}
+              >
+                Durdur ({getElapsedSeconds(session, timer.nowMs)}s){session.userName ? ` — ${session.userName}` : ''}
+              </button>
+            ))
           ) : (
             <>
               <button
                 type="button"
                 className="btn"
                 onClick={() => {
-                  void timerStore.start(task.id)
+                  void timerStore.start(task.id, assignedUserId ?? null)
                 }}
-                disabled={timer.loading || busy || (timer.active !== null && timer.active.taskId !== task.id)}
+              disabled={busy}
               >
                 Süresiz başlat
               </button>
@@ -136,9 +149,9 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
                   type="button"
                   className="btn"
                   onClick={() => {
-                    void timerStore.startWithDuration(task.id, p.minutes)
+                    void timerStore.startWithDuration(task.id, p.minutes, assignedUserId ?? null)
                   }}
-                  disabled={timer.loading || busy || (timer.active !== null && timer.active.taskId !== task.id)}
+                disabled={busy}
                 >
                   {p.label}
                 </button>
@@ -162,13 +175,11 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
                   onClick={() => {
                     const n = Number(customMinutes)
                     if (Number.isFinite(n) && n >= 1) {
-                      void timerStore.startWithDuration(task.id, n)
+                      void timerStore.startWithDuration(task.id, n, assignedUserId ?? null)
                     }
                   }}
                   disabled={
-                    timer.loading ||
                     busy ||
-                    (timer.active !== null && timer.active.taskId !== task.id) ||
                     !Number.isFinite(Number(customMinutes)) ||
                     Number(customMinutes) < 1
                   }
@@ -235,6 +246,43 @@ export function TaskDetailsPanel({ task, onClose, onDeleteTask }: TaskDetailsPan
       <div className="form">
         {error ? <div className="error">{error}</div> : null}
         {timer.error ? <div className="error">{timer.error}</div> : null}
+        <label className="form-row">
+          Atanan kullanıcı
+          <select
+            className="input"
+            value={assignedUserId !== null ? String(assignedUserId) : ''}
+            onChange={(e) => {
+              const raw = e.target.value
+              const parsed = raw === '' ? null : Number(raw)
+              const normalized = parsed !== null && Number.isFinite(parsed) ? parsed : null
+              setAssignedUserId(normalized)
+              if (!onUpdateTask) return
+              setBusy(true)
+              setError(null)
+              void (async () => {
+                try {
+                  const payload: UpdateTaskInput = { id: task.id, assignedUserId: normalized }
+                  const res = await onUpdateTask(payload)
+                  if (!res.ok) {
+                    setError(res.error.message)
+                  }
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Atanan kullanıcı güncellenemedi')
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }}
+            disabled={busy}
+          >
+            <option value="">Atanmadı</option>
+            {users.map((u) => (
+              <option key={u.id} value={String(u.id)}>
+                {u.firstName} {u.lastName} ({u.role})
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="note-meta">Durum: {STATUS_LABEL[task.status] ?? task.status}</div>
         <div className="note-meta">Öncelik: {task.priority}</div>
         {assigneeName ? (

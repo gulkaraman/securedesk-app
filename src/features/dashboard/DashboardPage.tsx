@@ -22,12 +22,12 @@ export function DashboardPage() {
   const [filterDayIndices, setFilterDayIndices] = useState<Set<number>>(new Set())
   const [filterProjectIds, setFilterProjectIds] = useState<Set<number>>(new Set())
   const timer = useTimerState()
-  const elapsed = getElapsedSeconds(timer.active, timer.nowMs)
 
   useEffect(() => {
     const cancelledRef = { current: false }
     setLoading(true)
     setError(null)
+
     void (async () => {
       try {
         const [projectsRes, usersRes, weeklyRes, todayRes] = await Promise.all([
@@ -36,7 +36,9 @@ export function DashboardPage() {
           window.api.reports.getWeekly({ baseDateMs: Date.now() }),
           window.api.timer.todaySummary()
         ])
+
         if (cancelledRef.current) return
+
         const projList = unwrap(projectsRes)
         setProjects(projList)
         setUsers(unwrap(usersRes))
@@ -50,8 +52,7 @@ export function DashboardPage() {
             return { ...p, taskCount: count }
           })
         )
-        // Cleanup may set cancelledRef.current; avoid stale state update
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+
         if (!cancelledRef.current) setProjectCounts(withCounts)
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Dashboard yüklenemedi')
@@ -59,6 +60,7 @@ export function DashboardPage() {
         setLoading(false)
       }
     })()
+
     return () => {
       cancelledRef.current = true
     }
@@ -66,6 +68,11 @@ export function DashboardPage() {
 
   const totalTasks = projectCounts.reduce((s, p) => s + p.taskCount, 0)
   const todayTotalSeconds = todaySummary.reduce((s, t) => s + t.totalSeconds, 0)
+
+  const activeTaskCount = timer.active.length
+  const activeTotalSeconds = useMemo(() => {
+    return timer.active.reduce((sum, session) => sum + getElapsedSeconds(session, timer.nowMs), 0)
+  }, [timer.active, timer.nowMs])
 
   const toggleDayFilter = useCallback((index: number) => {
     setFilterDayIndices((prev) => {
@@ -75,9 +82,11 @@ export function DashboardPage() {
       return next
     })
   }, [])
+
   const toggleProjectFilter = useCallback((index: number) => {
     const p = projectCounts[index]
     if (!p) return
+
     setFilterProjectIds((prev) => {
       const next = new Set(prev)
       if (next.has(p.id)) next.delete(p.id)
@@ -85,31 +94,39 @@ export function DashboardPage() {
       return next
     })
   }, [projectCounts])
+
   const clearDayFilters = useCallback(() => {
     setFilterDayIndices(new Set())
   }, [])
+
   const clearProjectFilters = useCallback(() => {
     setFilterProjectIds(new Set())
   }, [])
 
   const detail = weeklyReport?.detail ?? []
+
   const filteredDetail = useMemo(() => {
     if (filterDayIndices.size === 0) return detail
+
     const selectedDates = new Set(
       (weeklyReport?.perDay ?? [])
         .filter((_, i) => filterDayIndices.has(i))
         .map((d) => d.date)
     )
+
     return detail.filter((row) => selectedDates.has(row.dateMs))
   }, [detail, weeklyReport, filterDayIndices])
+
   const detailRowsWithKey = useMemo(
     () => filteredDetail.map((r, i) => ({ ...r, _rowKey: `${String(r.dateMs)}-${String(r.taskId)}-${String(i)}` })),
     [filteredDetail]
   )
+
   const filteredProjectCounts = useMemo(() => {
     if (filterProjectIds.size === 0) return projectCounts
     return projectCounts.filter((p) => filterProjectIds.has(p.id))
   }, [projectCounts, filterProjectIds])
+
   const hasDayFilters = filterDayIndices.size > 0
   const hasProjectFilters = filterProjectIds.size > 0
 
@@ -141,6 +158,7 @@ export function DashboardPage() {
         <div className="panel-header">
           <div className="panel-title">Özet</div>
         </div>
+
         <div className="dashboard-stats">
           <div className="dashboard-stat">
             <span className="dashboard-stat-value">{projects.length}</span>
@@ -157,14 +175,14 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {timer.active ? (
+      {activeTaskCount > 0 ? (
         <div className="panel dashboard-active-timer">
           <div className="panel-header">
-            <div className="panel-title">Aktif sayaç</div>
+            <div className="panel-title">Aktif Sayaç Özeti</div>
           </div>
           <div className="form">
-            <div className="note-meta">{timer.active.taskTitle}</div>
-            <div className="note-meta">Süre: {elapsed}s</div>
+            <div className="note-meta">Aktif görev sayısı: {activeTaskCount}</div>
+            <div className="note-meta">Toplam anlık süre: {formatDuration(activeTotalSeconds)}</div>
           </div>
         </div>
       ) : null}
@@ -179,6 +197,7 @@ export function DashboardPage() {
               </button>
             ) : null}
           </div>
+
           {weeklyReport ? (
             <>
               <div className="form">
@@ -187,11 +206,13 @@ export function DashboardPage() {
                 </div>
                 <div className="note-meta">Tamamlanan görev: {weeklyReport.completedTasksCount}</div>
               </div>
+
               {weeklyReport.totalSeconds > 0 ? (
                 <>
                   <div className="chart-wrap dashboard-chart">
                     <WeeklyByDayChart days={weeklyReport.perDay} onSegmentClick={toggleDayFilter} />
                   </div>
+
                   <DataTable<WeeklyReportDetailItem & { _rowKey: string }>
                     keyField="_rowKey"
                     rows={detailRowsWithKey}
@@ -216,11 +237,13 @@ export function DashboardPage() {
           <div className="panel-header">
             <div className="panel-title">Bugün</div>
           </div>
+
           <div className="form">
             <div className="note-meta">
               Toplam: <strong>{formatDuration(todayTotalSeconds)}</strong>
             </div>
           </div>
+
           {todaySummary.length > 0 ? (
             <ul className="dashboard-today-list">
               {todaySummary.map((t) => (
@@ -246,9 +269,11 @@ export function DashboardPage() {
               </button>
             ) : null}
           </div>
+
           <div className="chart-wrap dashboard-chart dashboard-chart-wide">
             <ProjectsTaskChart data={projectCounts} onSegmentClick={toggleProjectFilter} />
           </div>
+
           <DataTable<ProjectWithCount>
             keyField="id"
             rows={filteredProjectCounts}
@@ -264,18 +289,27 @@ export function DashboardPage() {
   )
 }
 
-function ProjectsTaskChart({ data, onSegmentClick }: { data: ProjectWithCount[]; onSegmentClick?: (index: number) => void }) {
+function ProjectsTaskChart({
+  data,
+  onSegmentClick
+}: {
+  data: ProjectWithCount[]
+  onSegmentClick?: (index: number) => void
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const chartRef = useRef<Chart | null>(null)
 
   useEffect(() => {
     const abort = { aborted: false }
+
     void (async () => {
       const { Chart: ChartJs } = await import('chart.js/auto')
       if (abort.aborted) return
       if (!canvasRef.current) return
+
       const labels = data.map((p) => p.name)
       const counts = data.map((p) => p.taskCount)
+
       const cfg: ChartConfiguration<'bar', number[], string> = {
         type: 'bar',
         data: {
@@ -291,11 +325,25 @@ function ProjectsTaskChart({ data, onSegmentClick }: { data: ProjectWithCount[];
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          onClick: (_, elements) => {
+          onClick: (event, elements, chart) => {
+            if (!onSegmentClick) return
+
             const first = elements[0]
-            if (first != null && onSegmentClick) {
+            if (first) {
               onSegmentClick(first.index)
+              return
             }
+
+            const e = event as unknown as { native?: { offsetX?: number } }
+            const x = e.native?.offsetX
+            const scale = chart.scales.x
+            if (!scale || typeof x !== 'number') return
+
+            const rawIndex = scale.getValueForPixel(x)
+            const index = typeof rawIndex === 'number' ? Math.round(rawIndex) : Number(rawIndex)
+            if (!Number.isFinite(index) || index < 0 || index >= data.length) return
+
+            onSegmentClick(index)
           },
           plugins: { legend: { display: false } },
           scales: {
@@ -303,8 +351,10 @@ function ProjectsTaskChart({ data, onSegmentClick }: { data: ProjectWithCount[];
           }
         }
       }
+
       chartRef.current = new ChartJs(canvasRef.current, cfg)
     })()
+
     return () => {
       abort.aborted = true
       chartRef.current?.destroy()

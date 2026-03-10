@@ -12,13 +12,20 @@ export function markAllowClose(): void {
 }
 
 export function createMainWindow(): BrowserWindow {
+  const iconName = 'iconfinder-technologymachineelectronicdevice23-4026437_113360.png'
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, iconName)
+    : path.join(app.getAppPath(), iconName)
+
   const win = new BrowserWindow({
+    title: 'Yerel Suit',
     width: 1200,
     height: 760,
     minWidth: 980,
     minHeight: 640,
     frame: false,
     backgroundColor: '#0b0f19',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -27,8 +34,8 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
-  const devUrl = process.env.VITE_DEV_SERVER_URL
-  if (devUrl) {
+  const devUrl = process.env.ELECTRON_RENDERER_URL
+  if (!app.isPackaged && devUrl) {
     void win.loadURL(devUrl)
     win.webContents.openDevTools({ mode: 'detach' })
   } else {

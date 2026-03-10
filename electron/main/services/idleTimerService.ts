@@ -55,38 +55,45 @@ export class IdleTimerService {
   }
 
   private autoStop(reason: 'idle' | 'suspend' | 'lock-screen', idleSeconds: number): void {
-    const active = this.timerService.getActive()
-    if (!active) return
+    const activeList = this.timerService.getActive()
+    if (activeList.length === 0) return
 
     const now = Date.now()
-    const entry = this.timerService.stop(now, 'auto_stop')
-
-    this.activityLogService.create({
-      taskId: entry.taskId,
-      type: 'idle_detected',
-      payloadJson: JSON.stringify({
-        taskId: entry.taskId,
-        idleSeconds,
-        reason
-      })
-    })
-
-    this.activityLogService.create({
-      taskId: entry.taskId,
-      type: 'timer_auto_stopped',
-      payloadJson: JSON.stringify({
-        taskId: entry.taskId,
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        durationSeconds: entry.durationSeconds,
-        source: entry.source,
-        reason
-      })
-    })
+    for (const session of activeList) {
+      try {
+        const entry = this.timerService.stop(session.taskId, null, now, 'auto_stop')
+        this.activityLogService.create({
+          taskId: entry.taskId,
+          type: 'idle_detected',
+          payloadJson: JSON.stringify({
+            taskId: entry.taskId,
+            idleSeconds,
+            reason
+          })
+        })
+        this.activityLogService.create({
+          taskId: entry.taskId,
+          type: 'timer_auto_stopped',
+          payloadJson: JSON.stringify({
+            taskId: entry.taskId,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            durationSeconds: entry.durationSeconds,
+            source: entry.source,
+            reason
+          })
+        })
+      } catch {
+        // ignore if already stopped
+      }
+    }
 
     const notification = new Notification({
       title: 'Süre takibi durduruldu',
-      body: '10 dakikalık hareketsizlik nedeniyle süre takibi otomatik durduruldu.'
+      body:
+        activeList.length === 1
+          ? '10 dakikalık hareketsizlik nedeniyle süre takibi otomatik durduruldu.'
+          : `${String(activeList.length)} adet sayaç 10 dakikalık hareketsizlik nedeniyle durduruldu.`
     })
     notification.show()
   }

@@ -93,23 +93,7 @@ export function registerIpcHandlers(): void {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const idleTimerService = new IdleTimerService(timerService, activityLogService)
   const reportService = new ReportService(db)
-  // Recovery strategy: if an active timer exists on startup (e.g. app closed/crashed),
-  // auto-stop it and log as `auto_stop`.
-  const recovered = timerService.recoverOnStartup(Date.now())
-  if (recovered) {
-    activityLogService.create({
-      taskId: recovered.stoppedEntry.taskId,
-      type: 'timer_stopped',
-      payloadJson: JSON.stringify({
-        taskId: recovered.stoppedEntry.taskId,
-        startTime: recovered.stoppedEntry.startTime,
-        endTime: recovered.stoppedEntry.endTime,
-        durationSeconds: recovered.stoppedEntry.durationSeconds,
-        source: recovered.stoppedEntry.source,
-        reason: 'recovery'
-      })
-    })
-  }
+  // Startup strategy: keep active timers as-is and let renderer read them via timer:getActive.
 
 
   const wrap = <T>(fn: () => T): Result<T> => {
@@ -310,11 +294,11 @@ export function registerIpcHandlers(): void {
   )
   ipcMain.handle('timeEntries:delete', (_event, id: number) => wrap(() => timeEntryService.delete(id)))
 
-  // Timer (single active session)
+  // Timer (multiple concurrent sessions)
   ipcMain.handle('timer:getActive', () => wrap(() => timerService.getActive()))
-  ipcMain.handle('timer:start', (_event, taskId: number) =>
+  ipcMain.handle('timer:start', (_event, taskId: number, userId: number | null) =>
     wrap(() => {
-      const session = timerService.start(taskId, Date.now())
+      const session = timerService.start(taskId, userId, Date.now())
       activityLogService.create({
         taskId: session.taskId,
         type: 'timer_started',
@@ -327,9 +311,9 @@ export function registerIpcHandlers(): void {
       return session
     })
   )
-  ipcMain.handle('timer:stop', () =>
+  ipcMain.handle('timer:stop', (_event, taskId: number) =>
     wrap(() => {
-      const entry = timerService.stop(Date.now(), 'manual')
+      const entry = timerService.stop(taskId, null, Date.now(), 'manual')
       activityLogService.create({
         taskId: entry.taskId,
         type: 'timer_stopped',

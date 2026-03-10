@@ -17,11 +17,21 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.local.suite')
 }
 
+app.setName('Yerel Suit')
+
 function createAppTray(): void {
   if (tray) return
 
-  const iconPath = path.join(__dirname, 'icon.png')
-  let image = nativeImage.createFromPath(iconPath)
+  const devIconPath = path.join(app.getAppPath(), 'iconfinder-technologymachineelectronicdevice23-4026437_113360.png')
+  const prodIconPath = path.join(
+    process.resourcesPath,
+    'iconfinder-technologymachineelectronicdevice23-4026437_113360.png'
+  )
+
+  let image = nativeImage.createFromPath(devIconPath)
+  if (image.isEmpty()) {
+    image = nativeImage.createFromPath(prodIconPath)
+  }
   if (image.isEmpty()) {
     image = nativeImage.createEmpty()
   }

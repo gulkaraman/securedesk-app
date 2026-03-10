@@ -1,8 +1,9 @@
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import { useEffect, useMemo, useState } from 'react'
-import type { CreateTaskInput, Project, Task, TaskStatus, User } from '@shared/models'
+import type { CreateTaskInput, Project, Task, TaskStatus, UpdateTaskInput, User } from '@shared/models'
 import type { Result } from '@shared/result'
 import { unwrap } from '@shared/result'
+import { timerStore, useTimerState } from '@lib/timerStore'
 import { TaskColumn } from './components/TaskColumn'
 import { TaskDetailsPanel } from './components/TaskDetailsPanel'
 import { TaskEditor } from './components/TaskEditor'
@@ -13,17 +14,15 @@ export function TasksPage() {
   const [users, setUsers] = useState<User[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [showProjectEditor, setShowProjectEditor] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined)
-
-  const selected = useMemo(() => {
-    if (selectedId === null) return null
-    return tasks.find((n) => n.id === selectedId) ?? null
-  }, [tasks, selectedId])
+  const [quickMinutes, setQuickMinutes] = useState<string>('')
+  const timer = useTimerState()
 
   const refreshProjects = async () => {
     const res = await window.api.projects.list()
@@ -40,8 +39,21 @@ export function TasksPage() {
     const res = await window.api.tasks.listByProject(pid)
     const next = unwrap(res)
     setTasks(next)
-    const first = next.at(0)
-    if (first && selectedId === null) setSelectedId(first.id)
+
+    if (next.length === 0 || (selectedId !== null && !next.some((t) => t.id === selectedId))) {
+      setSelectedId(null)
+    }
+  }
+
+  const getAllTasksAcrossProjects = async (): Promise<Task[]> => {
+    const all = await Promise.all(
+      projects.map(async (project) => {
+        const res = await window.api.tasks.listByProject(project.id)
+        return unwrap(res)
+      })
+    )
+
+    return all.flat()
   }
 
   useEffect(() => {
@@ -57,6 +69,7 @@ export function TasksPage() {
 
   useEffect(() => {
     if (projectId === null) return
+
     void (async () => {
       try {
         await refreshTasks(projectId)
@@ -65,9 +78,23 @@ export function TasksPage() {
       }
     })()
   }, [projectId])
-  const onSaveTask = async (input: CreateTaskInput | { id: number } & Partial<CreateTaskInput>): Promise<Result<Task>> => {
+
+  useEffect(() => {
+    if (selectedId === null) return
+
+    const stillVisible = tasks.some(
+      (t) => t.id === selectedId && (selectedUserId === null || t.assignedUserId === selectedUserId)
+    )
+
+    if (!stillVisible) setSelectedId(null)
+  }, [selectedId, selectedUserId, tasks])
+
+  const onSaveTask = async (
+    input: CreateTaskInput | ({ id: number } & Partial<CreateTaskInput>)
+  ): Promise<Result<Task>> => {
     setBusy(true)
     setError(null)
+
     try {
       if ('id' in input) {
         const res = await window.api.tasks.update(input)
@@ -76,6 +103,7 @@ export function TasksPage() {
         }
         return res
       }
+
       const res = await window.api.tasks.create(input)
       if (res.ok) {
         setTasks((prev) => [res.value, ...prev])
@@ -92,21 +120,27 @@ export function TasksPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over) return
+
     const [activeType, activeIdStr] = String(active.id).split('-')
     const [overType, overKey] = String(over.id).split('-')
+
     if (activeType !== 'task' || overType !== 'column') return
+
     const id = Number(activeIdStr)
     const nextStatus = overKey as TaskStatus
+
     setTasks((prev) => {
       const current = prev.find((t) => t.id === id)
       if (!current || current.status === nextStatus) return prev
       return prev.map((t) => (t.id === id ? { ...t, status: nextStatus } : t))
     })
+
     try {
       const update: Partial<CreateTaskInput> & { id: number; status: TaskStatus } = {
         id,
         status: nextStatus
       }
+
       const res = await window.api.tasks.update(update)
       if (!res.ok) {
         setError(res.error.message)
@@ -117,6 +151,7 @@ export function TasksPage() {
           to: nextStatus,
           taskId: res.value.id
         }
+
         await window.api.activityLogs.create({
           taskId: res.value.id,
           type: 'task.status_changed',
@@ -128,14 +163,48 @@ export function TasksPage() {
     }
   }
 
-  const todo = tasks.filter((t) => t.status === 'todo')
-  const inProgress = tasks.filter((t) => t.status === 'in_progress')
-  const done = tasks.filter((t) => t.status === 'done')
+  const usersForProject = useMemo(() => {
+    if (projectId === null) return []
+
+    const userIds = new Set<number>()
+    for (const t of tasks) {
+      if (t.assignedUserId != null) userIds.add(t.assignedUserId)
+    }
+
+    return users.filter((u) => userIds.has(u.id))
+  }, [projectId, tasks, users])
+
+  const filteredTasks = useMemo(() => {
+    if (selectedUserId === null) return tasks
+    return tasks.filter((t) => t.assignedUserId === selectedUserId)
+  }, [tasks, selectedUserId])
+
+  const selectedTask = useMemo(() => {
+    if (selectedId === null) return null
+    return filteredTasks.find((t) => t.id === selectedId) ?? null
+  }, [filteredTasks, selectedId])
+
+  const todo = filteredTasks.filter((t) => t.status === 'todo')
+  const inProgress = filteredTasks.filter((t) => t.status === 'in_progress')
+  const done = filteredTasks.filter((t) => t.status === 'done')
+
+  const handleStartTask = (task: Task): void => {
+    void timerStore.start(task.id, task.assignedUserId ?? null)
+  }
+
+  const handleStopTask = (task: Task, _userId: number | null): void => {
+    void timerStore.stop(task.id)
+  }
+
+  const getActiveSessionsForTask = (task: Task) => {
+    return timer.active.filter((s) => s.taskId === task.id)
+  }
 
   return (
     <div className="panel">
       <div className="panel-header">
         <div className="panel-title">Görevler</div>
+
         <div className="row">
           <select
             className="input"
@@ -143,10 +212,13 @@ export function TasksPage() {
             onChange={(e) => {
               const raw = e.target.value
               setSelectedId(null)
+              setSelectedUserId(null)
+
               if (raw === '') {
                 setProjectId(null)
                 return
               }
+
               const next = Number(raw)
               setProjectId(Number.isFinite(next) ? next : null)
             }}
@@ -159,6 +231,32 @@ export function TasksPage() {
               </option>
             ))}
           </select>
+
+          {projectId !== null && (
+            <select
+              className="input"
+              value={selectedUserId !== null ? String(selectedUserId) : ''}
+              onChange={(e) => {
+                const raw = e.target.value
+                if (raw === '') {
+                  setSelectedUserId(null)
+                  return
+                }
+
+                const next = Number(raw)
+                setSelectedUserId(Number.isFinite(next) ? next : null)
+              }}
+              disabled={busy || usersForProject.length === 0}
+            >
+              <option value="">Tüm kullanıcılar</option>
+              {usersForProject.map((u) => (
+                <option key={u.id} value={String(u.id)}>
+                  {u.firstName} {u.lastName} ({u.role})
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             type="button"
             className="btn"
@@ -169,6 +267,7 @@ export function TasksPage() {
           >
             Yeni Proje
           </button>
+
           <button
             type="button"
             className="btn"
@@ -180,6 +279,45 @@ export function TasksPage() {
           >
             Yeni Görev
           </button>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void (async () => {
+                setBusy(true)
+                setError(null)
+
+                try {
+                  const allTasks = await getAllTasksAcrossProjects()
+                  const taskIds = allTasks.map((task) => task.id)
+
+                  if (taskIds.length === 0) return
+
+                  await timerStore.startMany(taskIds)
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Tüm sayaçlar başlatılamadı')
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }}
+            disabled={busy || timer.loading || projects.length === 0}
+          >
+            Tüm Sayaçları Başlat
+          </button>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void timerStore.stopMany(timer.active.map((t) => t.taskId))
+            }}
+            disabled={busy || timer.loading || timer.active.length === 0}
+          >
+            Tümünü Durdur
+          </button>
+
           <button
             type="button"
             className="btn"
@@ -190,6 +328,7 @@ export function TasksPage() {
                     await refreshProjects()
                     return
                   }
+
                   await refreshTasks(projectId)
                 } catch (e: unknown) {
                   setError(e instanceof Error ? e.message : 'Yenileme başarısız')
@@ -202,6 +341,63 @@ export function TasksPage() {
           </button>
         </div>
       </div>
+
+      {projectId !== null && selectedTask !== null ? (
+        <div className="panel" style={{ marginTop: 8 }}>
+          <div className="panel-header">
+            <div className="panel-title">Seçili görev için süre başlat</div>
+          </div>
+
+          <div className="form">
+            <div className="note-meta" style={{ marginBottom: 4 }}>
+              Proje: {projects.find((p) => p.id === projectId)?.name ?? '—'} · Görev: {selectedTask.title}
+            </div>
+
+            <div className="form-row">
+              <label>
+                Süre (dakika)
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={480}
+                  placeholder="dk"
+                  value={quickMinutes}
+                  onChange={(e) => {
+                    setQuickMinutes(e.target.value)
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  void timerStore.start(selectedTask.id, selectedTask.assignedUserId ?? null)
+                }}
+                disabled={busy}
+              >
+                Süresiz başlat
+              </button>
+
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const n = Number(quickMinutes)
+                  if (!Number.isFinite(n) || n < 1) return
+                  void timerStore.startWithDuration(selectedTask.id, n, selectedTask.assignedUserId ?? null)
+                }}
+                disabled={busy || !Number.isFinite(Number(quickMinutes)) || Number(quickMinutes) < 1}
+              >
+                Süreli başlat
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {error ? <div className="error">{error}</div> : null}
 
@@ -223,34 +419,52 @@ export function TasksPage() {
                 status="todo"
                 title="Yapılacaklar"
                 tasks={todo}
+                selectedTaskId={selectedId}
+                onStartTask={handleStartTask}
+                getActiveSessionsForTask={getActiveSessionsForTask}
+                onStopTask={handleStopTask}
                 onTaskClick={(t) => {
                   setSelectedId(t.id)
                   setEditingTask(t)
+                  setShowEditor(true)
                 }}
               />
+
               <TaskColumn
                 status="in_progress"
                 title="Sürüyor"
                 tasks={inProgress}
+                selectedTaskId={selectedId}
+                onStartTask={handleStartTask}
+                getActiveSessionsForTask={getActiveSessionsForTask}
+                onStopTask={handleStopTask}
                 onTaskClick={(t) => {
                   setSelectedId(t.id)
                   setEditingTask(t)
+                  setShowEditor(true)
                 }}
               />
+
               <TaskColumn
                 status="done"
                 title="Tamamlandı"
                 tasks={done}
+                selectedTaskId={selectedId}
+                onStartTask={handleStartTask}
+                getActiveSessionsForTask={getActiveSessionsForTask}
+                onStopTask={handleStopTask}
                 onTaskClick={(t) => {
                   setSelectedId(t.id)
                   setEditingTask(t)
+                  setShowEditor(true)
                 }}
               />
             </div>
           </DndContext>
 
           <TaskDetailsPanel
-            task={selected}
+            task={selectedTask}
+            users={users}
             onClose={() => {
               setSelectedId(null)
               setEditingTask(undefined)
@@ -264,6 +478,13 @@ export function TasksPage() {
               }
               return res
             }}
+            onUpdateTask={async (input: UpdateTaskInput) => {
+              const res = await window.api.tasks.update(input)
+              if (res.ok) {
+                setTasks((prev) => prev.map((t) => (t.id === res.value.id ? res.value : t)))
+              }
+              return res
+            }}
           />
         </div>
       )}
@@ -273,6 +494,7 @@ export function TasksPage() {
           onSave={async (input) => {
             setBusy(true)
             setError(null)
+
             try {
               const res = await window.api.projects.create(input)
               if (res.ok) {
@@ -308,4 +530,3 @@ export function TasksPage() {
     </div>
   )
 }
-

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { User } from '@shared/models'
+import type { UpdateUserInput, User } from '@shared/models'
 import { unwrap } from '@shared/result'
 import { DataTable, type DataTableColumn } from '../../components/DataTable'
 
@@ -11,6 +11,7 @@ export function UsersPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [editingUserId, setEditingUserId] = useState<number | null>(null)
 
   const loadUsers = async () => {
     const res = await window.api.users.list()
@@ -27,7 +28,7 @@ export function UsersPage() {
     })()
   }, [])
 
-  const handleCreate = (e: React.SyntheticEvent<HTMLFormElement>): void => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>): void => {
     e.preventDefault()
     void (async () => {
       setError(null)
@@ -41,19 +42,39 @@ export function UsersPage() {
       }
       setBusy(true)
       try {
-        const res = await window.api.users.create({
-          firstName: trimmedFirst,
-          lastName: trimmedLast,
-          role: trimmedRole
-        })
-        if (res.ok) {
-          setFirstName('')
-          setLastName('')
-          setRole('')
-          setSuccess('Kullanıcı oluşturuldu.')
-          await loadUsers()
+        if (editingUserId === null) {
+          const res = await window.api.users.create({
+            firstName: trimmedFirst,
+            lastName: trimmedLast,
+            role: trimmedRole
+          })
+          if (res.ok) {
+            setFirstName('')
+            setLastName('')
+            setRole('')
+            setSuccess('Kullanıcı oluşturuldu.')
+            await loadUsers()
+          } else {
+            setError(res.error.message)
+          }
         } else {
-          setError(res.error.message)
+          const payload: UpdateUserInput = {
+            id: editingUserId,
+            firstName: trimmedFirst,
+            lastName: trimmedLast,
+            role: trimmedRole
+          }
+          const res = await window.api.users.update(payload)
+          if (res.ok) {
+            setSuccess('Kullanıcı güncellendi.')
+            setEditingUserId(null)
+            setFirstName('')
+            setLastName('')
+            setRole('')
+            await loadUsers()
+          } else {
+            setError(res.error.message)
+          }
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Kullanıcı oluşturulamadı')
@@ -81,7 +102,7 @@ export function UsersPage() {
         <div className="panel-title">Kullanıcılar</div>
       </div>
 
-      <form className="form" onSubmit={handleCreate}>
+      <form className="form" onSubmit={handleSubmit}>
         <div className="form-row">
           <label>
             Ad
@@ -123,8 +144,25 @@ export function UsersPage() {
         </div>
         <div className="form-row">
           <button type="submit" className="btn" disabled={busy}>
-            {busy ? 'Kaydediliyor…' : 'Kullanıcı oluştur'}
+            {busy ? 'Kaydediliyor…' : editingUserId === null ? 'Kullanıcı oluştur' : 'Kullanıcıyı güncelle'}
           </button>
+          {editingUserId !== null ? (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setEditingUserId(null)
+                setFirstName('')
+                setLastName('')
+                setRole('')
+                setSuccess(null)
+                setError(null)
+              }}
+              disabled={busy}
+            >
+              Düzenlemeyi iptal et
+            </button>
+          ) : null}
         </div>
       </form>
 
@@ -140,6 +178,14 @@ export function UsersPage() {
           rows={users}
           columns={columns}
           searchPlaceholder="Kullanıcı ara…"
+          onRowClick={(user) => {
+            setEditingUserId(user.id)
+            setFirstName(user.firstName)
+            setLastName(user.lastName)
+            setRole(user.role)
+            setError(null)
+            setSuccess(null)
+          }}
           emptyMessage="Henüz kullanıcı yok. Yukarıdaki formdan oluşturabilirsiniz. Oluşturulan kullanıcılara görev atayabilirsiniz."
         />
       </div>

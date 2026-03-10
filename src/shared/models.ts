@@ -45,6 +45,17 @@ export interface TaskAttachment {
 
 export type TimeEntrySource = 'manual' | 'auto_stop'
 
+// Timer domain types (renderer + main shared)
+export type TimerStopSource = 'manual' | 'idle' | 'quit'
+
+export interface CompletedTimeEntry {
+  taskId: Id
+  startTime: UnixMs
+  endTime: UnixMs
+  durationSeconds: number
+  source: TimerStopSource
+}
+
 export interface TimeEntry {
   id: Id
   taskId: Id
@@ -77,8 +88,12 @@ export interface AppSetting {
 }
 
 export interface ActiveTimerSession {
+  projectId: Id
+  projectName: string
   taskId: Id
   taskTitle: string
+  userId: Id | null
+  userName: string | null
   startTime: UnixMs
 }
 

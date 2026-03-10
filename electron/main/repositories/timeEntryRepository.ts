@@ -31,8 +31,8 @@ export class TimeEntryRepository {
       `SELECT
         id,
         task_id AS taskId,
-        start_time AS startTime,
-        end_time AS endTime,
+        COALESCE(started_at_ms, start_time) AS startTime,
+        COALESCE(ended_at_ms, end_time) AS endTime,
         duration_seconds AS durationSeconds,
         source,
         created_at AS createdAt
@@ -47,10 +47,10 @@ export class TimeEntryRepository {
   public create(input: CreateTimeEntryInput): TimeEntry {
     const ts = Date.now()
     const insert = this.db.prepare(
-      `INSERT INTO time_entries (task_id, start_time, end_time, duration_seconds, source, created_at)
-       VALUES (?, ?, NULL, 0, ?, ?)`
+      `INSERT INTO time_entries (task_id, start_time, started_at_ms, end_time, ended_at_ms, duration_seconds, source, created_at)
+       VALUES (?, ?, ?, NULL, NULL, 0, ?, ?)`
     )
-    const info = insert.run(input.taskId, input.startTime, input.source, ts)
+    const info = insert.run(input.taskId, input.startTime, input.startTime, input.source, ts)
     const id = Number(info.lastInsertRowid)
     const created = this.getById(id)
     if (!created) throw new Error('Failed to load created time entry')
@@ -59,6 +59,8 @@ export class TimeEntryRepository {
 
   public createCompleted(params: {
     taskId: Id
+    projectId: Id
+    userId: Id | null
     startTime: number
     endTime: number
     durationSeconds: number
@@ -66,12 +68,16 @@ export class TimeEntryRepository {
   }): TimeEntry {
     const ts = Date.now()
     const insert = this.db.prepare(
-      `INSERT INTO time_entries (task_id, start_time, end_time, duration_seconds, source, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO time_entries (task_id, project_id, user_id, start_time, started_at_ms, end_time, ended_at_ms, duration_seconds, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     const info = insert.run(
       params.taskId,
+      params.projectId,
+      params.userId,
       params.startTime,
+      params.startTime,
+      params.endTime,
       params.endTime,
       params.durationSeconds,
       params.source,
@@ -92,9 +98,9 @@ export class TimeEntryRepository {
     const source = input.source ?? existing.source
 
     const stmt = this.db.prepare(
-      'UPDATE time_entries SET end_time = ?, duration_seconds = ?, source = ? WHERE id = ?'
+      'UPDATE time_entries SET end_time = ?, ended_at_ms = ?, duration_seconds = ?, source = ? WHERE id = ?'
     )
-    stmt.run(endTime, durationSeconds, source, input.id)
+    stmt.run(endTime, endTime, durationSeconds, source, input.id)
     return this.getById(input.id)
   }
 
@@ -109,8 +115,8 @@ export class TimeEntryRepository {
       `SELECT
         id,
         task_id AS taskId,
-        start_time AS startTime,
-        end_time AS endTime,
+        COALESCE(started_at_ms, start_time) AS startTime,
+        COALESCE(ended_at_ms, end_time) AS endTime,
         duration_seconds AS durationSeconds,
         source,
         created_at AS createdAt

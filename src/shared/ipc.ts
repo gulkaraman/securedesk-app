@@ -75,9 +75,9 @@ export interface IpcInvokeMap {
   'timeEntries:delete': { args: [Id]; result: Result<boolean> }
 
   // Timer
-  'timer:getActive': { args: []; result: Result<ActiveTimerSession | null> }
-  'timer:start': { args: [Id]; result: Result<ActiveTimerSession> }
-  'timer:stop': { args: []; result: Result<TimeEntry> }
+  'timer:getActive': { args: []; result: Result<ActiveTimerSession[]> }
+  'timer:start': { args: [Id, Id | null]; result: Result<ActiveTimerSession> }
+  'timer:stop': { args: [Id]; result: Result<TimeEntry> }
   'timer:todayEntries': { args: []; result: Result<TodayTimeEntryItem[]> }
   'timer:todaySummary': { args: []; result: Result<TodayTaskSummaryItem[]> }
   'timer:taskTotals': { args: [Id]; result: Result<TaskTimeTotals> }
@@ -162,9 +162,9 @@ export interface RendererApi {
     delete: (id: Id) => Promise<Result<boolean>>
   }
   timer: {
-    getActive: () => Promise<Result<ActiveTimerSession | null>>
-    start: (taskId: Id) => Promise<Result<ActiveTimerSession>>
-    stop: () => Promise<Result<TimeEntry>>
+    getActive: () => Promise<Result<ActiveTimerSession[]>>
+    start: (taskId: Id, userId: Id | null) => Promise<Result<ActiveTimerSession>>
+    stop: (taskId: Id) => Promise<Result<TimeEntry>>
     todayEntries: () => Promise<Result<TodayTimeEntryItem[]>>
     todaySummary: () => Promise<Result<TodayTaskSummaryItem[]>>
     taskTotals: (taskId: Id) => Promise<Result<TaskTimeTotals>>

@@ -58,7 +58,8 @@
     "win": {
       "target": ["portable"],
       "signAndEditExecutable": false,
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "${productName}-${version}.${ext}",
+      "icon": "iconfinder-technologymachineelectronicdevice23-4026437_113360.png"
     },
     "mac": {
       "target": ["dmg"],
@@ -67,6 +68,9 @@
     "linux": {
       "target": ["AppImage"],
       "category": "Office"
-    }
+    },
+    "extraResources": [
+      "iconfinder-technologymachineelectronicdevice23-4026437_113360.png"
+    ]
   }
 }

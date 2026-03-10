@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   keyField: keyof T
   searchPlaceholder?: string
   emptyMessage?: string
+  onRowClick?: (row: T) => void
 }
 
 function getSortValue<T>(row: T, col: DataTableColumn<T>): string | number {
@@ -28,7 +29,8 @@ export function DataTable<T>({
   rows,
   keyField,
   searchPlaceholder = 'Ara…',
-  emptyMessage = 'Kayıt yok.'
+  emptyMessage = 'Kayıt yok.',
+  onRowClick
 }: DataTableProps<T>): React.ReactElement {
   const [sortId, setSortId] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -110,7 +112,13 @@ export function DataTable<T>({
             </thead>
             <tbody>
               {sorted.map((row) => (
-                <tr key={String(row[keyField])}>
+                <tr
+                  key={String(row[keyField])}
+                  onClick={() => {
+                    if (onRowClick) onRowClick(row)
+                  }}
+                  style={onRowClick ? { cursor: 'pointer' } : undefined}
+                >
                   {columns.map((col) => (
                     <td key={col.id} align={col.align ?? 'left'}>
                       {getCellDisplay(row, col)}

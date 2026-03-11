@@ -8,9 +8,10 @@ interface TaskCardProps {
   onStart?: (() => void) | undefined
   activeSessions?: ActiveTimerSession[] | undefined
   onStop?: ((userId: number | null) => void) | undefined
+  onAttachFile?: (() => void) | undefined
 }
 
-export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, onStop }: TaskCardProps) {
+export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, onStop, onAttachFile }: TaskCardProps) {
   const dragId = `task-${task.id.toString()}`
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: dragId
@@ -25,7 +26,7 @@ export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, o
 
   const hasActiveSession = Array.isArray(activeSessions) && activeSessions.length > 0
   const firstActiveSession = hasActiveSession ? activeSessions[0] : null
-  const hasActions = Boolean(onStart ?? onStop)
+  const hasActions = Boolean(onStart ?? onStop ?? onAttachFile)
 
   return (
     <div
@@ -72,6 +73,24 @@ export function TaskCard({ task, isSelected, onClick, onStart, activeSessions, o
 
       {hasActions && (
         <div className="row" style={{ marginTop: 8, gap: 8 }}>
+          {onAttachFile ? (
+            <button
+              type="button"
+              className="btn"
+              onPointerDown={(e) => {
+                e.stopPropagation()
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onAttachFile()
+              }}
+            >
+              Dosya ekle
+            </button>
+          ) : null}
           {!hasActiveSession && onStart ? (
             <button
               type="button"

@@ -196,6 +196,20 @@ export function TasksPage() {
     void timerStore.stop(task.id)
   }
 
+  const handleAttachFile = (task: Task): void => {
+    void (async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await window.api.taskAttachments.pickAndAttach(task.id)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Dosya eklenemedi')
+      } finally {
+        setBusy(false)
+      }
+    })()
+  }
+
   const getActiveSessionsForTask = (task: Task) => {
     return timer.active.filter((s) => s.taskId === task.id)
   }
@@ -420,6 +434,7 @@ export function TasksPage() {
                 title="Yapılacaklar"
                 tasks={todo}
                 selectedTaskId={selectedId}
+                onAttachFile={handleAttachFile}
                 onStartTask={handleStartTask}
                 getActiveSessionsForTask={getActiveSessionsForTask}
                 onStopTask={handleStopTask}
@@ -435,6 +450,7 @@ export function TasksPage() {
                 title="Sürüyor"
                 tasks={inProgress}
                 selectedTaskId={selectedId}
+                onAttachFile={handleAttachFile}
                 onStartTask={handleStartTask}
                 getActiveSessionsForTask={getActiveSessionsForTask}
                 onStopTask={handleStopTask}
@@ -450,6 +466,7 @@ export function TasksPage() {
                 title="Tamamlandı"
                 tasks={done}
                 selectedTaskId={selectedId}
+                onAttachFile={handleAttachFile}
                 onStartTask={handleStartTask}
                 getActiveSessionsForTask={getActiveSessionsForTask}
                 onStopTask={handleStopTask}

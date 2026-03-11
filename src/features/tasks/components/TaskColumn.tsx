@@ -11,6 +11,7 @@ interface TaskColumnProps {
   onStartTask?: (task: Task) => void
   getActiveSessionsForTask?: (task: Task) => ActiveTimerSession[]
   onStopTask?: (task: Task, userId: number | null) => void
+  onAttachFile?: (task: Task) => void
 }
 
 export function TaskColumn({
@@ -21,7 +22,8 @@ export function TaskColumn({
   onTaskClick,
   onStartTask,
   getActiveSessionsForTask,
-  onStopTask
+  onStopTask,
+  onAttachFile
 }: TaskColumnProps) {
   const { isOver, setNodeRef } = useDroppable({
     id: `column-${status}`
@@ -42,6 +44,13 @@ export function TaskColumn({
             key={t.id}
             task={t}
             isSelected={selectedTaskId === t.id}
+            onAttachFile={
+              onAttachFile
+                ? () => {
+                    onAttachFile(t)
+                  }
+                : undefined
+            }
             onStart={
               onStartTask
                 ? () => {

@@ -22,6 +22,7 @@ export function TasksPage() {
   const [showProjectEditor, setShowProjectEditor] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined)
   const [quickMinutes, setQuickMinutes] = useState<string>('')
+  const [attachmentsRefreshNonce, setAttachmentsRefreshNonce] = useState(0)
   const timer = useTimerState()
 
   const refreshProjects = async () => {
@@ -201,7 +202,12 @@ export function TasksPage() {
       setBusy(true)
       setError(null)
       try {
-        await window.api.taskAttachments.pickAndAttach(task.id)
+        // Ensure the user can immediately see attachments in the side panel.
+        setSelectedId(task.id)
+        const created = unwrap(await window.api.taskAttachments.pickAndAttach(task.id))
+        if (created) {
+          setAttachmentsRefreshNonce((n) => n + 1)
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Dosya eklenemedi')
       } finally {
@@ -481,6 +487,7 @@ export function TasksPage() {
 
           <TaskDetailsPanel
             task={selectedTask}
+            refreshNonce={attachmentsRefreshNonce}
             users={users}
             onClose={() => {
               setSelectedId(null)

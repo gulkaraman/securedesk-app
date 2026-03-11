@@ -7,6 +7,7 @@ import { formatDuration } from '@lib/time'
 
 interface TaskDetailsPanelProps {
   task: Task | null
+  refreshNonce?: number
   users: User[]
   onClose: () => void
   onDeleteTask?: (taskId: number) => Promise<Result<boolean>>
@@ -44,7 +45,7 @@ const DURATION_PRESETS = [
   { label: '1 saat', minutes: 60 }
 ]
 
-export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateTask }: TaskDetailsPanelProps) {
+export function TaskDetailsPanel({ task, refreshNonce, users, onClose, onDeleteTask, onUpdateTask }: TaskDetailsPanelProps) {
   const [attachments, setAttachments] = useState<TaskAttachment[]>([])
   const [assigneeName, setAssigneeName] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -78,7 +79,7 @@ export function TaskDetailsPanel({ task, users, onClose, onDeleteTask, onUpdateT
         setError(e instanceof Error ? e.message : 'Ekler yüklenemedi')
       }
     })()
-  }, [task?.id])
+  }, [task?.id, refreshNonce])
 
   useEffect(() => {
     setAssignedUserId(task?.assignedUserId ?? null)
